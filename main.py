@@ -114,4 +114,5 @@ async def process():
     await asyncio.gather(private_feeds(), public_feeds())
 
 if __name__ == '__main__':
-    asyncio.run(process())
+    try: asyncio.run(process())
+    except KeyboardInterrupt: pass

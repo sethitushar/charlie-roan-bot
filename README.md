@@ -46,7 +46,7 @@ Save & exit: `Ctrl + S` → `Ctrl + X`
 pm2 start main.py --name main --interpreter=python3
 ```
 
-### 7. PM2 Process Management Commands
+### 5. PM2 Process Management Commands
 
 View running processes:
 
