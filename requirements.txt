@@ -1,3 +1,4 @@
 python-decouple
+pytz
 requests
 websockets

@@ -1,5 +1,6 @@
-import asyncio, json, logging, re
+import asyncio, json, logging, pytz, re
 import requests, websockets, random, string
+from datetime import datetime
 from decouple import config
 
 # Setup logging
@@ -12,6 +13,8 @@ else: logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(mes
 
 ticker = 'PEPPERSTONE:ETHUSD'
 base_url = 'https://papertrading.tradingview.com'
+
+timezone = pytz.timezone('Europe/London')
 state = {'balance': 0, 'position': 0, 'price': 0}
 
 headers = {
@@ -22,6 +25,10 @@ headers = {
 }
 
 # Utility functions
+
+def in_maintenance_window():
+    now = datetime.now(timezone)
+    return (now.weekday() == 6) and (now.hour == 21) and (0 <= now.minute < 15)
 
 def generate_session() -> str:
     chars = [random.choice(string.ascii_lowercase) for _ in range(12)]
@@ -67,9 +74,9 @@ async def private_feeds():
 
             if message['text']['content']['m'] == 'order_update':
                 info = message['text']['content']['p']
-                if info['label'] in ['tp', 'sl'] and info['status'] == 'filled':
+                if info['label'] in ['tp', 'sl'] and info['status'] == 'filled' and not in_maintenance_window():
                     response = place_order(info['side'] if info['label'] == 'sl' else ('sell' if info['side'] == 'buy' else 'buy'))
-                    logging.info(f"Order response: {response}")
+                    state['position'] = response['qty']; logging.info(f'Order placed (logic): {response}')
 
 # TradingView public feeds websocket
 
@@ -91,28 +98,26 @@ async def public_feeds():
             if re.compile(r"~m~\d+~m~~h~\d+").fullmatch(message):
                 await websocket.send(message)
 
-            match = re.search(r'"lp":\s*(\d+(?:\.\d+)?)', message)                
-            if match and state['price']:
+            match = re.search(r'"lp":\s*(\d+(?:\.\d+)?)', message)
+            if match:
                 state['price'] = float(match.group(1))
+                logging.info(f"Ticker Price updated: {state['price']}")
 
-            if match and not state['price']:
-                state['price'] = float(match.group(1))
-                if not state['position']:
-                    response = place_order('buy')
-                    logging.info(f"Order response: {response}")
-
-            logging.info(f"Ticker Price updated: {state['price']}")
+                if not (state['position'] or in_maintenance_window()):
+                    response = place_order('buy'); state['position'] = response['qty']
+                    logging.info(f'Order response (initial): {response}')
 
 
 # Starting the main process
 
-async def process():
-    global state
-    account = account_info()
-    state['balance'] = account['balance']
-    state['position'] = next((item['qty'] for item in account['positions'] if item['symbol'] == ticker), 0)
+async def run_sockets():
     await asyncio.gather(private_feeds(), public_feeds())
 
 if __name__ == '__main__':
-    try: asyncio.run(process())
+
+    account = account_info()
+    state['balance'] = account['balance']
+    state['position'] = next((item['qty'] for item in account['positions'] if item['symbol'] == ticker), 0)
+
+    try: asyncio.run(run_sockets())
     except KeyboardInterrupt: pass
