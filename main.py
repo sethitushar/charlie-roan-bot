@@ -14,6 +14,7 @@ else: logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(mes
 ticker = 'PEPPERSTONE:ETHUSD'
 base_url = 'https://papertrading.tradingview.com'
 
+trade_cap = 10000
 timezone = pytz.timezone('Europe/London')
 state = {'balance': 0, 'position': 0, 'price': 0}
 
@@ -46,15 +47,15 @@ def account_info() -> dict:
 
 def place_order(side: str, qty_percent: int = 90, sl_percent: int = 0.5, tp_percent: int = 0.5) -> dict:
     url = f"{base_url}/trading/place/{config('TV_ACCOUNT_ID')}"
-    quantity = round((state['balance'] * qty_percent / 100) / state['price'], 2)
+    quantity = round(min(state['balance'] * qty_percent / 100, trade_cap) / state['price'], 2)
     stoploss = round(state['price'] + (state['price'] * sl_percent / 100) * (1 if side == 'sell' else -1), 2)
     takeprof = round(state['price'] + (state['price'] * tp_percent / 100) * (-1 if side == 'sell' else 1), 2)
     payload = {'symbol': ticker, 'type': 'market', 'qty': quantity, 'side': side, 'sl': stoploss, 'tp': takeprof, 'outside_rth': False, 'outside_rth_tp': False}
     return requests.post(url, json=payload, headers=headers).json()
 
-# TradingView private feeds websocket
+# TradingView private feed websocket
 
-async def private_feeds():
+async def private_feed():
     global state
 
     uri = 'wss://pushstream.tradingview.com/message-pipe-ws/private_feed'
@@ -78,9 +79,9 @@ async def private_feeds():
                     response = place_order(info['side'] if info['label'] == 'sl' else ('sell' if info['side'] == 'buy' else 'buy'))
                     state['position'] = response['qty']; logging.info(f'Order placed (logic): {response}')
 
-# TradingView public feeds websocket
+# TradingView public feed websocket
 
-async def public_feeds():
+async def public_feed():
     global state
 
     uri = 'wss://data.tradingview.com/socket.io/websocket'
@@ -111,7 +112,7 @@ async def public_feeds():
 # Starting the main process
 
 async def run_sockets():
-    await asyncio.gather(private_feeds(), public_feeds())
+    await asyncio.gather(private_feed(), public_feed())
 
 if __name__ == '__main__':
 
