@@ -14,7 +14,6 @@ else: logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(mes
 ticker = 'PEPPERSTONE:ETHUSD'
 base_url = 'https://papertrading.tradingview.com'
 
-trade_cap = 10000
 timezone = pytz.timezone('Europe/London')
 state = {'balance': 0, 'position': 0, 'price': 0}
 
@@ -47,7 +46,7 @@ def account_info() -> dict:
 
 def place_order(side: str, qty_percent: int = 90, sl_percent: int = 0.5, tp_percent: int = 0.5) -> dict:
     url = f"{base_url}/trading/place/{config('TV_ACCOUNT_ID')}"
-    quantity = round(min(state['balance'] * qty_percent / 100, trade_cap) / state['price'], 2)
+    quantity = round((state['balance'] * qty_percent / 100) / state['price'], 2)
     stoploss = round(state['price'] + (state['price'] * sl_percent / 100) * (1 if side == 'sell' else -1), 2)
     takeprof = round(state['price'] + (state['price'] * tp_percent / 100) * (-1 if side == 'sell' else 1), 2)
     payload = {'symbol': ticker, 'type': 'market', 'qty': quantity, 'side': side, 'sl': stoploss, 'tp': takeprof, 'outside_rth': False, 'outside_rth_tp': False}
