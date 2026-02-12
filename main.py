@@ -11,7 +11,7 @@ else: logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(mes
 
 # Define constant states
 
-ticker = 'PEPPERSTONE:ETHUSD'
+ticker = 'KRAKEN:ETHUSD'
 base_url = 'https://papertrading.tradingview.com'
 
 timezone = pytz.timezone('Europe/London')
@@ -49,7 +49,7 @@ def place_order(side: str, qty_percent: int = 90, sl_percent: int = 0.5, tp_perc
     quantity = round((state['balance'] * qty_percent / 100) / state['price'], 2)
     stoploss = round(state['price'] + (state['price'] * sl_percent / 100) * (1 if side == 'sell' else -1), 2)
     takeprof = round(state['price'] + (state['price'] * tp_percent / 100) * (-1 if side == 'sell' else 1), 2)
-    payload = {'symbol': ticker, 'type': 'market', 'qty': quantity, 'side': side, 'sl': stoploss, 'tp': takeprof, 'outside_rth': False, 'outside_rth_tp': False}
+    payload = {'type': 'market', 'side': side, 'symbol': ticker, 'qty': quantity, 'sl': stoploss, 'tp': takeprof, 'outside_rth': False, 'outside_rth_tp': False}
     return requests.post(url, json=payload, headers=headers).json()
 
 # TradingView private feed websocket
@@ -107,17 +107,14 @@ async def public_feed():
                     response = place_order('buy'); state['position'] = response['qty']
                     logging.info(f'Order response (initial): {response}')
 
-
 # Starting the main process
 
-async def run_sockets():
-    await asyncio.gather(private_feed(), public_feed())
-
-if __name__ == '__main__':
-
+async def process():
     account = account_info()
     state['balance'] = account['balance']
     state['position'] = next((item['qty'] for item in account['positions'] if item['symbol'] == ticker), 0)
+    await asyncio.gather(private_feed(), public_feed())
 
-    try: asyncio.run(run_sockets())
+if __name__ == '__main__':
+    try: asyncio.run(process())
     except KeyboardInterrupt: pass
